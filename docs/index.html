@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>たのしいさんすう - 足し算・引き算ゲーム</title>
+<style>
+  :root{
+    --bg:#fff7e6;
+    --card:#ffffff;
+    --accent:#ff7a59;
+    --muted:#6b6b6b;
+    --good:#2bb673;
+  }
+  html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;background:var(--bg);color:#222}
+  .app{max-width:640px;margin:0 auto;padding:16px;display:flex;flex-direction:column;min-height:100vh;box-sizing:border-box;}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  h1{font-size:20px;margin:0}
+  .settings{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  select,input[type=range],button{font-size:16px;padding:8px;border-radius:10px;border:1px solid #ddd;background:white}
+  .card{background:var(--card);border-radius:14px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,0.06);margin-bottom:12px;}
+  .problem{display:flex;flex-direction:column;align-items:center;gap:8px;padding:6px}
+  .visual{font-size:28px;line-height:1.2}
+  .expression{font-size:42px;font-weight:700;letter-spacing:2px}
+  .input-row{display:flex;gap:8px;align-items:center}
+  .answer-box{min-width:110px;padding:10px;border-radius:12px;border:2px dashed #eee;font-size:28px;text-align:center;background:#fcfcfc}
+  .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .key{padding:12px;border-radius:12px;text-align:center;font-size:22px;background:#fff;border:1px solid #eee;box-shadow:0 2px 4px rgba(0,0,0,0.04)}
+  .key:active{transform:translateY(2px)}
+  .controls{display:flex;gap:8px;margin-top:10px;justify-content:center;flex-wrap:wrap}
+  .bigbtn{padding:10px 16px;border-radius:12px;background:var(--accent);color:white;border:none;font-weight:700}
+  .smallbtn{background:#f3f3f3;border:none}
+  .status{display:flex;justify-content:space-between;gap:8px;font-size:14px;margin-top:8px}
+  .badge{background:#fff;padding:6px 8px;border-radius:10px;border:1px solid #eee;min-width:80px;text-align:center}
+  .positive{color:var(--good);font-weight:700}
+  .confetti{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none}
+  footer{margin-top:auto;padding:8px;text-align:center;font-size:12px;color:var(--muted)}
+  @media (max-width:420px){
+    .expression{font-size:36px}
+    .answer-box{min-width:90px;font-size:24px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>たのしいさんすう 🧮</h1>
+    <div class="settings">
+      <label>モード
+        <select id="mode">
+          <option value="add">足し算 (+)</option>
+          <option value="sub">引き算 (−)</option>
+          <option value="mix">ミックス</option>
+        </select>
+      </label>
+      <label>最大
+        <select id="maxNumber">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <div class="card problem">
+    <div class="visual" id="visual">🍎🍎🍎</div>
+    <div class="expression" id="expression">3 + 2 = ?</div>
+    <div class="input-row">
+      <div class="answer-box" id="answerBox">0</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="key bigbtn" id="startBtn">スタート</button>
+        <button class="key smallbtn" id="hintBtn">ヒント</button>
+      </div>
+    </div>
+
+    <div class="keypad" id="keypad" aria-hidden="true" style="display:none">
+      <button class="key">1</button><button class="key">2</button><button class="key">3</button>
+      <button class="key">4</button><button class="key">5</button><button class="key">6</button>
+      <button class="key">7</button><button class="key">8</button><button class="key">9</button>
+      <button class="key">0</button><button class="key" id="delKey">←</button><button class="key" id="okKey">OK</button>
+    </div>
+
+    <div class="controls" id="controls" style="display:none">
+      <button class="key smallbtn" id="skipBtn">スキップ</button>
+      <button class="key smallbtn" id="resetBtn">リセット</button>
+    </div>
+
+    <div class="status">
+      <div class="badge">スコア: <span id="score">0</span></div>
+      <div class="badge">連続正解: <span id="streak">0</span></div>
+      <div class="badge">正答数: <span id="totalCorrect">0</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <label><input type="checkbox" id="soundToggle" checked/> 音を鳴らす</label>
+      </div>
+      <div>
+        <button id="parentBtn" class="smallbtn">親モード</button>
+      </div>
+    </div>
+    <p style="margin:8px 0 0 0;color:var(--muted)">簡単な設定で始められます。連続正解で自動的に難易度が上がります。</p>
+  </div>
+
+  <div id="confetti" class="confetti" aria-hidden="true"></div>
+
+  <footer>
+    作成: 算数博士の練習アプリ — 親御さんはリセットでデータ確認できます
+  </footer>
+</div>
+
+<script>
+/* --- ゲームロジック --- */
+const expressionEl = document.getElementById('expression');
+const visualEl = document.getElementById('visual');
+const answerBox = document.getElementById('answerBox');
+const keypad = document.getElementById('keypad');
+const startBtn = document.getElementById('startBtn');
+const hintBtn = document.getElementById('hintBtn');
+const controls = document.getElementById('controls');
+const scoreEl = document.getElementById('score');
+const streakEl = document.getElementById('streak');
+const totalCorrectEl = document.getElementById('totalCorrect');
+const confettiEl = document.getElementById('confetti');
+
+let modeSel = document.getElementById('mode');
+let maxNumberSel = document.getElementById('maxNumber');
+let soundToggle = document.getElementById('soundToggle');
+
+let state = {
+  running:false,
+  current:null,
+  input:"",
+  score:0,
+  streak:0,
+  totalCorrect:0,
+  maxNumber: parseInt(maxNumberSel.value,10),
+  mode: modeSel.value
+};
+
+// load saved
+function loadState(){
+  let saved = localStorage.getItem('sansu-game-v1');
+  if(saved){
+    try{
+      const s = JSON.parse(saved);
+      state.score = s.score||0;
+      state.streak = s.streak||0;
+      state.totalCorrect = s.totalCorrect||0;
+      state.maxNumber = s.maxNumber||state.maxNumber;
+      scoreEl.textContent = state.score;
+      streakEl.textContent = state.streak;
+      totalCorrectEl.textContent = state.totalCorrect;
+      // reflect
+      maxNumberSel.value = String(state.maxNumber);
+    }catch(e){}
+  }
+}
+function saveState(){
+  localStorage.setItem('sansu-game-v1', JSON.stringify({
+    score: state.score,
+    streak: state.streak,
+    totalCorrect: state.totalCorrect,
+    maxNumber: state.maxNumber
+  }));
+}
+
+/* 問題作成 */
+function genProblem(){
+  const max = state.maxNumber;
+  let a = randInt(0,max);
+  let b = randInt(0,max);
+  let mode = state.mode;
+  if(mode === 'mix'){ mode = Math.random() < 0.5 ? 'add' : 'sub'; }
+  // for subtraction, ensure non-negative result for 小1
+  if(mode === 'sub'){
+    if(a < b) [a,b] = [b,a];
+    const expr = {a,b,op:'-',ans:a-b};
+    return expr;
+  } else {
+    const expr = {a,b,op:'+',ans:a+b};
+    return expr;
+  }
+}
+
+function randInt(min,max){
+  // inclusive
+  return Math.floor(Math.random()*(max-min+1))+min;
+}
+
+function renderProblem(p){
+  expressionEl.textContent = `${p.a} ${p.op} ${p.b} = ?`;
+  visualEl.textContent = visualFor(p);
+  state.current = p;
+  state.input = "";
+  updateAnswerBox();
+}
+
+/* 視覚表示（リンゴの絵など） */
+function visualFor(p){
+  // 表示は小さい数にだけ絵を出す（負担軽減）
+  const maxShow = 12;
+  if(p.op === '+'){
+    const left = Math.min(p.a, maxShow);
+    const right = Math.min(p.b, maxShow);
+    return '🍎'.repeat(left) + '　' + '🍎'.repeat(right);
+  } else {
+    const left = Math.min(p.a, maxShow);
+    return '🍎'.repeat(left);
+  }
+}
+
+/* 入力表示更新 */
+function updateAnswerBox(){
+  answerBox.textContent = state.input === "" ? "?" : state.input;
+}
+
+/* 正誤判定 */
+function submitAnswer(){
+  if(!state.current) return;
+  const given = parseInt(state.input,10);
+  if(isNaN(given)) return flashMessage("数字を入れてね");
+  const correct = state.current.ans;
+  if(given === correct){
+    onCorrect();
+  } else {
+    onWrong();
+  }
+}
+
+/* 正解処理 */
+function onCorrect(){
+  playSound(880,0.08);
+  state.score += 10;
+  state.streak += 1;
+  state.totalCorrect += 1;
+  scoreEl.textContent = state.score;
+  streakEl.textContent = state.streak;
+  totalCorrectEl.textContent = state.totalCorrect;
+  showConfetti();
+  flashMessage("すごい！正解✨", true);
+  // 自動難易度調整：3連続でmaxNumber上げる（上限100）
+  if(state.streak % 3 === 0){
+    state.maxNumber = Math.min(100, state.maxNumber + 2);
+    maxNumberSel.value = String(state.maxNumber);
+  }
+  saveState();
+  // 次の問題
+  setTimeout(()=> renderProblem(genProblem()), 700);
+}
+
+/* 間違い時 */
+function onWrong(){
+  playSound(220,0.12);
+  flashMessage("ちょっと違うね。もう一度やってみよう！", false);
+  state.streak = 0;
+  streakEl.textContent = state.streak;
+  saveState();
+}
+
+/* UI フィードバック */
+let flashTimeout;
+function flashMessage(msg, positive){
+  expressionEl.textContent = msg;
+  expressionEl.style.color = positive ? "var(--good)" : "var(--accent)";
+  clearTimeout(flashTimeout);
+  flashTimeout = setTimeout(()=>{
+    if(state.current) expressionEl.textContent = `${state.current.a} ${state.current.op} ${state.current.b} = ?`;
+    expressionEl.style.color = "";
+  },900);
+}
+
+/* Confetti（簡易） */
+function showConfetti(){
+  confettiEl.innerHTML = "";
+  confettiEl.style.pointerEvents = "none";
+  for(let i=0;i<18;i++){ 
+    const d = document.createElement('div');
+    const size = randInt(8,18);
+    d.style.width = `${size}px`;
+    d.style.height = `${size}px`;
+    d.style.position = 'absolute';
+    d.style.left = `${randInt(10,90)}%`;
+    d.style.top = `${randInt(10,40)}%`;
+    d.style.opacity = 0.95;
+    d.style.transform = `rotate(${randInt(0,360)}deg)`;
+    d.style.borderRadius = `${randInt(0,50)}%`;
+    d.style.background = ["#ff6b6b","#ffd93d","#8bd3c7","#7aa2ff","#e79cff"][randInt(0,4)];
+    confettiEl.appendChild(d);
+    // animate
+    d.animate([
+      {transform: d.style.transform, opacity:0.95, top: d.style.top},
+      {transform: `translateY(${randInt(60,120)}vh) rotate(${randInt(360,720)}deg)`, opacity:0}
+    ],{duration:1200+randInt(0,600),easing:'cubic-bezier(.2,.7,.2,1)'});
+  }
+  setTimeout(()=> confettiEl.innerHTML = "", 1600);
+}
+
+/* 簡易音 */
+let audioCtx = null;
+function ensureAudio(){
+  if(!audioCtx) try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ audioCtx = null; }
+}
+function playSound(freq,dur){
+  if(!soundToggle.checked) return;
+  ensureAudio();
+  if(!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'sine';
+  o.frequency.value = freq;
+  o.connect(g);
+  g.connect(audioCtx.destination);
+  g.gain.value = 0.0001;
+  o.start();
+  g.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+  o.stop(audioCtx.currentTime + dur + 0.02);
+}
+
+/* --- イベント --- */
+startBtn.addEventListener('click', ()=>{
+  // 初回音許可のためのResume
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  state.mode = modeSel.value;
+  state.maxNumber = parseInt(maxNumberSel.value,10);
+  state.running = true;
+  keypad.style.display = 'grid';
+  controls.style.display = 'flex';
+  startBtn.textContent = "次へ";
+  renderProblem(genProblem());
+  saveState();
+});
+hintBtn.addEventListener('click', ()=>{
+  if(!state.current) return;
+  // ヒント表示：答えの範囲と、視覚的な数え方のヒント
+  const ans = state.current.ans;
+  flashMessage(`ヒント: 答えは ${Math.max(0,ans-2)}〜${ans+2} のあたりだよ`, true);
+});
+document.getElementById('keypad').addEventListener('click', (e)=>{
+  if(!e.target.classList.contains('key')) return;
+  const v = e.target.textContent.trim();
+  if(v === "←"){
+    state.input = state.input.slice(0,-1);
+    updateAnswerBox();
+  } else if(v === "OK"){
+    submitAnswer();
+  } else {
+    // 数字入力（先頭ゼロ制御）
+    if(state.input.length >= 3) return; // 上限3桁
+    if(state.input === "0") state.input = v;
+    else state.input += v;
+    updateAnswerBox();
+  }
+});
+document.getElementById('delKey').addEventListener('touchstart', ()=>{ /* handled above */ });
+document.getElementById('okKey').addEventListener('touchstart', ()=>{ /* handled above */ });
+document.getElementById('skipBtn').addEventListener('click', ()=>{
+  renderProblem(genProblem());
+});
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  if(confirm("本当にリセットしますか？ 親モード以外の方は親御さんに確認してください")){ 
+    localStorage.removeItem('sansu-game-v1');
+    state.score = 0; state.streak = 0; state.totalCorrect = 0; state.maxNumber = parseInt(maxNumberSel.value,10);
+    scoreEl.textContent = state.score;
+    streakEl.textContent = state.streak;
+    totalCorrectEl.textContent = state.totalCorrect;
+    alert("��セットしました。");
+  }
+});
+document.getElementById('parentBtn').addEventListener('click', ()=>{
+  // 親モードパスワード簡易
+  const p = prompt("親モードへ入ります。確認のため 'oki' と入力してください");
+  if(p === 'oki'){
+    const s = JSON.parse(localStorage.getItem('sansu-game-v1')||"{}");
+    alert(`保存データ\nスコア: ${s.score||0}\n連続: ${s.streak||0}\n正答: ${s.totalCorrect||0}\nmaxNumber: ${s.maxNumber||state.maxNumber}`);
+  } else {
+    alert("親モード認証に失敗しました。");
+  }
+});
+modeSel.addEventListener('change', ()=> state.mode = modeSel.value);
+maxNumberSel.addEventListener('change', ()=> state.maxNumber = parseInt(maxNumberSel.value,10));
+
+/* 初期ロード */
+loadState();
+updateAnswerBox();
+</script>
+</body>
+</html>
